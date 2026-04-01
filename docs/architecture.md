@@ -15,8 +15,9 @@ HTTP handlers stay thin; **services** orchestrate validation and persistence; **
 ## Async job flow
 
 1. Client creates a **score_jobs** row with status `queued`.
-2. Worker loop calls `DatabaseJobQueue.dequeue_job_id()`, which **claims** one row (Postgres: `FOR UPDATE SKIP LOCKED`) and sets status `running`.
-3. `run_scoring_pipeline` resolves text (inline, document, or S3), runs claim extraction, runs scorers concurrently, persists **score_results** and **score_spans**, updates job `completed` or `failed`.
+2. **Database queue**: worker calls `DatabaseJobQueue.dequeue_job_id()`, which **claims** one row (Postgres: `FOR UPDATE SKIP LOCKED`) and sets status `running`.
+3. **SQS queue**: API commits the row, then sends `{"job_id": "..."}` to SQS; worker long-polls `SqsJobQueue`, marks the job `running` if still `queued`, then deletes the message after a successful run.
+4. `run_scoring_pipeline` resolves text (inline, document, or S3), runs claim extraction, runs scorers concurrently, persists **score_results** and **score_spans**, updates job `completed` or `failed`.
 
 ## LLM interaction
 
@@ -34,4 +35,4 @@ HTTP handlers stay thin; **services** orchestrate validation and persistence; **
 ## Deployment model
 
 - **Docker**: API and worker containers share the same image build pattern (PDM install prod).
-- **AWS (CDK)**: VPC, S3, RDS, IAM roles, ECR, ECS cluster, CloudWatch log groups — extend with services, load balancers, and secrets wiring.
+- **AWS (CDK)**: VPC, S3, Secrets Manager, SQS job queue, ECR, IAM (inside Compute stack), ALB + Fargate API, Fargate worker, CloudWatch logs. Postgres is **self-managed** (e.g. Docker) or external — see [cdk-database.md](cdk-database.md).

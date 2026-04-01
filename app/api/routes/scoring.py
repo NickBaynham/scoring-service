@@ -8,6 +8,7 @@ from app.db.repositories.jobs import JobRepository
 from app.db.session import get_db_session
 from app.schemas.api_errors import ErrorDetail, ErrorResponse
 from app.schemas.job import ScoreJobCreateRequest, ScoreJobCreateResponse, ScoreJobStatusResponse
+from app.services.job_notification import notify_job_enqueued
 from app.services.job_service import create_score_job
 
 router = APIRouter(
@@ -37,6 +38,8 @@ async def create_job(
     session: AsyncSession = Depends(get_db_session),
 ) -> ScoreJobCreateResponse:
     job = await create_score_job(session, body)
+    await session.commit()
+    await notify_job_enqueued(job.id)
     return ScoreJobCreateResponse(job_id=job.id, status="queued")
 
 

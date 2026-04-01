@@ -59,6 +59,7 @@ See [.env.example](.env.example) for:
 - `S3_BUCKET`, `AWS_REGION`, `AWS_ENDPOINT_URL` (optional S3-compatible endpoint)
 - `API_KEY` (optional `X-API-Key` header for routes)
 - `WORKER_POLL_INTERVAL_SECONDS`
+- `JOB_QUEUE_BACKEND` (`database` or `sqs`), `SQS_QUEUE_URL`, `SQS_VISIBILITY_TIMEOUT_SECONDS` (when using SQS)
 
 ## Makefile targets
 
@@ -149,7 +150,7 @@ cdk deploy --all
 # cdk destroy --all   # when tearing down
 ```
 
-Stacks: **Network** (VPC), **Storage** (S3), **Database** (RDS Postgres), **IAM** (roles), **Compute** (ECR, ECS cluster, log groups). Extend Fargate services and ALB in `ComputeStack` for your environment.
+Stacks: **Network** (VPC), **Storage** (S3), **PostgresDocker** (CloudFormation outputs with a `docker-compose` Postgres template — **no RDS bill**), **Secrets** (DATABASE_URL + OPENAI placeholders in Secrets Manager), **Jobs** (SQS queue), **Compute** (ECR, IAM roles, **ALB + Fargate API**, **Fargate worker**, CloudWatch logs). Point `DATABASE_URL` in Secrets Manager at **self-hosted Postgres** (Docker on EC2/ECS in the VPC, or an external host). See [docs/cdk-database.md](docs/cdk-database.md).
 
 ## Troubleshooting
 
@@ -160,7 +161,7 @@ Stacks: **Network** (VPC), **Storage** (S3), **Database** (RDS Postgres), **IAM*
 
 ## Future improvements
 
-- Replace DB polling with **SQS** / **RabbitMQ** using the same `JobQueue` protocol.
+- Optional **SQS** job queue is implemented (`JOB_QUEUE_BACKEND=sqs`); extend with dead-letter queues or FIFO if needed.
 - Add **OpenTelemetry** exporters when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
 - Per-tenant rate limits and **JWT** auth.
 - Separate read models for analytics and dashboards.

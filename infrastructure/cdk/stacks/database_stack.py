@@ -1,49 +1,40 @@
-"""RDS Postgres (small default; tune for production)."""
+"""No RDS — reference outputs for self-hosted Postgres (Docker) to control cost."""
 
-from aws_cdk import Duration, RemovalPolicy, Stack
-from aws_cdk import aws_ec2 as ec2
-from aws_cdk import aws_rds as rds
+from aws_cdk import CfnOutput, Stack
 from constructs import Construct
 
+_DOCKER_COMPOSE = """version: "3.8"
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: scoring
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: scoring
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata: {}
+"""
 
-class DatabaseStack(Stack):
-    """Postgres instance in private subnets; credentials in Secrets Manager."""
 
-    def __init__(
-        self,
-        scope: Construct,
-        construct_id: str,
-        *,
-        vpc: ec2.IVpc,
-        **kwargs: object,
-    ) -> None:
+class PostgresDockerReferenceStack(Stack):
+    """Emits a docker-compose snippet and connection hints (no billable RDS)."""
+
+    def __init__(self, scope: Construct, construct_id: str, **kwargs: object) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
-        sg = ec2.SecurityGroup(
+        CfnOutput(
             self,
-            "RdsSg",
-            vpc=vpc,
-            description="Scoring service Postgres",
-            allow_all_outbound=True,
+            "DockerComposePostgres",
+            description="Run Postgres locally or on an EC2/ECS host with Docker.",
+            value=_DOCKER_COMPOSE,
         )
-
-        creds = rds.Credentials.from_generated_secret("scoring_admin")
-
-        self.database = rds.DatabaseInstance(
+        CfnOutput(
             self,
-            "ScoringPostgres",
-            engine=rds.DatabaseInstanceEngine.postgres(
-                version=rds.PostgresEngineVersion.VER_16_4,
-            ),
-            vpc=vpc,
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
-            instance_type=ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MICRO),
-            allocated_storage=20,
-            max_allocated_storage=100,
-            credentials=creds,
-            database_name="scoring",
-            removal_policy=RemovalPolicy.SNAPSHOT,
-            backup_retention=Duration.days(7),
-            security_groups=[sg],
-            publicly_accessible=False,
+            "AsyncDatabaseUrlExample",
+            description="Use this shape in Secrets Manager (DATABASE_URL secret).",
+            value="postgresql+asyncpg://scoring:changeme@<postgres-host>:5432/scoring",
         )

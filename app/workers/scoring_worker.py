@@ -12,10 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.telemetry import init_telemetry
+from app.db.models import JobStatus
 from app.db.repositories.jobs import JobRepository
 from app.db.session import get_session_factory, init_engine
 from app.services.scoring_service import run_scoring_pipeline
-from app.workers.queue import DatabaseJobQueue
+from app.workers.queue import JobQueue, build_job_queue
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,9 @@ async def process_once(
         if job is None:
             logger.error("Job disappeared after dequeue: %s", job_id)
             return
+        if job.status == JobStatus.QUEUED:
+            await repo.mark_running(job)
+            await session.flush()
         await run_scoring_pipeline(session, job)
         await session.commit()
 
@@ -40,18 +44,25 @@ async def worker_loop(stop: asyncio.Event) -> None:
     settings = get_settings()
     init_engine(settings)
     init_telemetry(settings)
-    queue = DatabaseJobQueue(get_session_factory())
-    poll = settings.worker_poll_interval_seconds
     factory = get_session_factory()
+    queue: JobQueue = build_job_queue(factory, settings)
+    poll = settings.worker_poll_interval_seconds
 
-    logger.info("Scoring worker started", extra={"poll_interval_s": poll})
+    logger.info(
+        "Scoring worker started",
+        extra={"poll_interval_s": poll, "queue_backend": settings.job_queue_backend},
+    )
 
     while not stop.is_set():
         try:
             job_id = await queue.dequeue_job_id()
             if job_id:
                 logger.info("Processing job", extra={"job_id": job_id})
-                await process_once(factory, job_id)
+                try:
+                    await process_once(factory, job_id)
+                    await queue.acknowledge_last()
+                except Exception:
+                    logger.exception("Job processing failed", extra={"job_id": job_id})
             else:
                 try:
                     await asyncio.wait_for(stop.wait(), timeout=poll)

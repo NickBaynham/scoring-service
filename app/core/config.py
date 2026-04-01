@@ -47,6 +47,10 @@ class Settings(BaseSettings):
 
     otel_exporter_otlp_endpoint: str | None = None
 
+    job_queue_backend: Literal["database", "sqs"] = "database"
+    sqs_queue_url: str = ""
+    sqs_visibility_timeout_seconds: float = 900.0
+
     @field_validator("database_url")
     @classmethod
     def ensure_async_driver(cls, v: str) -> str:

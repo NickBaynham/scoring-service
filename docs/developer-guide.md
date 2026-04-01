@@ -43,3 +43,4 @@ Use Alembic for all production schema changes; avoid `create_all` outside tests.
 - Ensure `DATABASE_URL` matches the API.
 - Watch logs for `job_id` and `correlation_id` (`X-Request-ID` on HTTP).
 - For SQLite tests, dequeue uses a simple `SELECT` without `SKIP LOCKED` semantics.
+- **SQS mode** (`JOB_QUEUE_BACKEND=sqs`): API must be able to `SendMessage` and workers must `ReceiveMessage`/`DeleteMessage` on the same queue. After `POST /v1/score-jobs`, the API commits the row then publishes the job id to SQS.
