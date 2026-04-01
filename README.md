@@ -9,8 +9,8 @@ Integrators need a single place to submit documents (or text), receive structure
 ## Architecture (summary)
 
 1. **POST** `/v1/documents` or supply text on **POST** `/v1/score-jobs`.
-2. A **score job** row is created with status `queued`.
-3. The **worker** claims jobs from Postgres (`SKIP LOCKED` on supported engines) and runs: resolve text → extract claims → run scorers in parallel → aggregate → persist.
+2. A **score_jobs** row is created with status `queued`; with **SQS** enabled, the API **commits** then publishes `job_id` to the queue.
+3. The **worker** pulls work via **database** polling (`SKIP LOCKED` on Postgres) or **SQS** long-poll, then runs: resolve text → extract claims → run scorers in parallel → aggregate → persist.
 4. **GET** `/v1/documents/{id}/scores` returns the latest completed profile for a tenant + profile name.
 
 See [docs/architecture.md](docs/architecture.md) for diagrams and data flow.
@@ -24,15 +24,16 @@ See [docs/architecture.md](docs/architecture.md) for diagrams and data flow.
 | `tests/` | unit, contract, integration, e2e |
 | `docker/` | `api.Dockerfile`, `worker.Dockerfile` |
 | `infrastructure/cdk/` | AWS CDK Python stacks |
-| `docs/` | End-user, developer, architecture, scoring model, API examples |
+| `docs/` | End-user, developer, architecture, scoring model, API examples, CDK database notes |
 | `scripts/` | Bootstrap, wait-for-Postgres, seed data |
+| `.github/workflows/` | CI, Docker image build, CDK (manual) |
 
 ## Prerequisites
 
 - **Python 3.11+**
 - **PDM** ([installation](https://pdm-project.org/latest/))
 - **Docker** + **Docker Compose** (for Postgres and containers)
-- Optional: **AWS CLI**, **CDK CLI**, **Node.js** (for `cdk` command)
+- Optional: **AWS CLI**, **CDK CLI**, **Node.js** (for `cdk` command), **[actionlint](https://github.com/rhysd/actionlint)** (for workflow YAML validation)
 
 ## Quick start (local, PDM)
 
@@ -48,6 +49,28 @@ make worker
 ```
 
 Open **Swagger UI**: http://localhost:8000/docs
+
+## Static checks and tests (local)
+
+Run the same checks as CI before pushing:
+
+```bash
+make check              # ruff check + mypy app + pytest with coverage
+```
+
+| Step | What it runs |
+|------|----------------|
+| **Ruff** | `ruff check app tests` (after `make format` for format + auto-fix) |
+| **mypy** | Strict typing on `app/` |
+| **pytest** | All tests under `tests/` with coverage report |
+
+Optional **GitHub Actions** workflow validation (install [actionlint](https://github.com/rhysd/actionlint) first):
+
+```bash
+make workflow-check
+```
+
+**CI** (`.github/workflows/ci.yml`) runs on push/PR to `main`: `pdm install`, `ruff check`, `ruff format --check`, `mypy app`, `pytest` with coverage XML artifact.
 
 ## Environment variables
 
@@ -68,9 +91,11 @@ See [.env.example](.env.example) for:
 | `make help` | List targets |
 | `make install` | Install dev + test + lint groups |
 | `make sync` | `pdm sync` with lockfile |
-| `make format` | Ruff format + auto-fix |
+| `make format` | Ruff format + `ruff check --fix` |
 | `make lint` | Ruff check |
 | `make typecheck` | mypy on `app/` |
+| `make check` | lint + typecheck + test (CI parity) |
+| `make workflow-check` | actionlint on `.github/workflows` (requires `actionlint` on PATH) |
 | `make test` | Full pytest + coverage |
 | `make test-unit` | Unit tests |
 | `make test-contract` | OpenAPI / schema contracts |
@@ -96,18 +121,18 @@ See [.env.example](.env.example) for:
 
 | Layer | Scope | Command |
 |-------|--------|---------|
-| **Unit** | Aggregation, parsing, prompts | `make test-unit` |
+| **Unit** | Aggregation, parsing, prompts, job queue factory | `make test-unit` |
 | **Contract** | OpenAPI paths and schema | `make test-contract` |
 | **Integration** | Health + DB-backed app (in-memory SQLite in tests) | `make test-integration` |
 | **E2E** | Document → job → worker → scores with **respx**-mocked LLM | `make test-e2e` |
 
-Tests use **pytest-asyncio** and **httpx** `ASGITransport` against the FastAPI app.
+Tests use **pytest-asyncio** and **httpx** `ASGITransport` against the FastAPI app. Pytest markers: `unit`, `contract`, `integration`, `e2e`.
 
 ## API overview
 
 - `GET /health` — liveness and DB readiness.
 - `POST /v1/documents` — register a document (optional before scoring).
-- `POST /v1/score-jobs` — enqueue scoring (`202` + `job_id`).
+- `POST /v1/score-jobs` — enqueue scoring (`202` + `job_id`); commits then **SQS notify** when `JOB_QUEUE_BACKEND=sqs`.
 - `GET /v1/score-jobs/{job_id}?tenant_id=...` — job status.
 - `GET /v1/documents/{document_id}/scores?tenant_id=...&profile=credibility_v1` — latest scores.
 
@@ -130,9 +155,11 @@ Images: `docker/api.Dockerfile`, `docker/worker.Dockerfile`.
 
 ## GitHub Actions
 
-- **`.github/workflows/ci.yml`** — on every push/PR: PDM install, ruff, mypy, pytest coverage.
-- **`.github/workflows/docker.yml`** — **manual** (`workflow_dispatch`) or **tags** `v*`: build/push API and worker images. Set `CONTAINER_REGISTRY`, `IMAGE_NAME`, and registry credentials as secrets/variables.
-- **`.github/workflows/cdk.yml`** — **manual only**: `synth`, `diff`, `deploy`, `destroy`. AWS resources are **not** created automatically on push.
+| Workflow | When | What |
+|----------|------|------|
+| **`ci.yml`** | Push/PR to `main` | PDM install, ruff check + format check, mypy, pytest + coverage artifact |
+| **`docker.yml`** | Manual `workflow_dispatch` (optional push) or tags `v*` | Build/push **two** images (`*-api`, `*-worker`) to registry. Configure repository **variables** `CONTAINER_REGISTRY`, `IMAGE_NAME` and secrets `REGISTRY_USERNAME`, `REGISTRY_PASSWORD` (or `GITHUB_TOKEN` for GHCR) |
+| **`cdk.yml`** | Manual only | `synth`, `diff`, `deploy`, `destroy`. Set `AWS_ROLE_ARN` secret for OIDC/role assumption when needed |
 
 ## AWS CDK
 
@@ -155,13 +182,13 @@ Stacks: **Network** (VPC), **Storage** (S3), **PostgresDocker** (CloudFormation 
 ## Troubleshooting
 
 - **503 on `/health`**: Postgres unreachable — check `DATABASE_URL` and `docker compose ps`.
-- **Jobs stuck queued**: ensure the **worker** is running and can reach the DB; check `DATABASE_URL` matches.
+- **Jobs stuck queued**: ensure the **worker** is running and can reach the DB; check `DATABASE_URL` matches. With **SQS**, confirm `SQS_QUEUE_URL`, IAM permissions, and that the API can `SendMessage` after commit.
 - **LLM errors**: verify `OPENAI_BASE_URL` and `OPENAI_API_KEY`; see logs with `LOG_LEVEL=DEBUG`.
 - **S3 text fetch**: set `AWS_*` and `S3_BUCKET`; for LocalStack/MinIO set `AWS_ENDPOINT_URL`.
 
 ## Future improvements
 
-- Optional **SQS** job queue is implemented (`JOB_QUEUE_BACKEND=sqs`); extend with dead-letter queues or FIFO if needed.
+- **SQS** queue supports DLQ, FIFO, or multi-queue routing if product needs it.
 - Add **OpenTelemetry** exporters when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
 - Per-tenant rate limits and **JWT** auth.
 - Separate read models for analytics and dashboards.

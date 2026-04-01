@@ -1,7 +1,6 @@
 """Unit tests for job queue factory."""
 
 import pytest
-
 from app.core.config import clear_settings_cache
 from app.workers.queue import DatabaseJobQueue, SqsJobQueue, build_job_queue
 

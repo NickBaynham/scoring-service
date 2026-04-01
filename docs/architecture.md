@@ -34,5 +34,5 @@ HTTP handlers stay thin; **services** orchestrate validation and persistence; **
 
 ## Deployment model
 
-- **Docker**: API and worker containers share the same image build pattern (PDM install prod).
-- **AWS (CDK)**: VPC, S3, Secrets Manager, SQS job queue, ECR, IAM (inside Compute stack), ALB + Fargate API, Fargate worker, CloudWatch logs. Postgres is **self-managed** (e.g. Docker) or external — see [cdk-database.md](cdk-database.md).
+- **Docker**: API and worker images built from `docker/*.Dockerfile` (PDM `install --prod`).
+- **AWS (CDK)**: VPC, S3, Secrets Manager, SQS job queue, ECR, IAM roles **inside** `ComputeStack` (avoids cross-stack IAM↔ECR cycles), public **ALB** → Fargate API service, private **Fargate** worker service, CloudWatch log groups. Postgres is **self-managed** (e.g. Docker on EC2) or external — see [cdk-database.md](cdk-database.md).

@@ -2,6 +2,8 @@
 
 Base URL examples use `http://localhost:8000`. Add `-H "X-API-Key: ..."` if `API_KEY` is configured.
 
+Optional tracing: send `X-Request-ID: <uuid>` on requests; the API echoes it on responses.
+
 ## Health
 
 ```bash
@@ -31,6 +33,8 @@ curl -s -X POST http://localhost:8000/v1/score-jobs \
     "profile": "credibility_v1"
   }' | jq .
 ```
+
+The server persists the job, **commits** the transaction, then (if `JOB_QUEUE_BACKEND=sqs`) publishes the `job_id` to SQS.
 
 ## Job status
 

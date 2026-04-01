@@ -13,6 +13,8 @@ The scoring service evaluates **document credibility** using large language mode
 
 If `API_KEY` is set server-side, send header `X-API-Key: <value>`.
 
+The HTTP API is the same whether the deployment uses a **database** queue or **SQS** for worker notifications; integrators only need the REST contract.
+
 ## Interpreting scores
 
 - **overall_score** — 0–1, weighted blend of dimensions (see [scoring-model.md](scoring-model.md)).

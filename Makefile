@@ -1,5 +1,5 @@
-.PHONY: help install sync format lint typecheck test test-unit test-contract test-integration test-e2e \
-	run worker dev docker-build docker-up docker-down migrate revision seed clean
+.PHONY: help install sync format lint typecheck check test test-unit test-contract test-integration test-e2e \
+	run worker dev docker-build docker-up docker-down migrate revision seed clean workflow-check
 
 PYTHON ?= python3
 PDM ?= pdm
@@ -12,6 +12,8 @@ help:
 	@echo "  make format           Ruff format"
 	@echo "  make lint             Ruff check"
 	@echo "  make typecheck        mypy on app/"
+	@echo "  make check            lint + typecheck + test (CI parity)"
+	@echo "  make workflow-check   actionlint on .github/workflows (optional)"
 	@echo "  make test             All pytest suites"
 	@echo "  make test-unit        Unit tests only"
 	@echo "  make test-contract    Contract tests"
@@ -43,6 +45,13 @@ lint:
 
 typecheck:
 	$(PDM) run mypy app
+
+check: lint typecheck test
+	@echo "All checks passed."
+
+workflow-check:
+	@command -v actionlint >/dev/null 2>&1 && actionlint .github/workflows/*.yml || \
+		(echo "Install actionlint: https://github.com/rhysd/actionlint#installation" && exit 1)
 
 test:
 	$(PDM) run pytest tests/ -v --cov=app --cov-report=term-missing

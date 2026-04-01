@@ -8,6 +8,21 @@
 4. `make migrate` — schema.
 5. `make dev` + `make worker` — API and worker.
 
+## Static checks before you push
+
+CI runs **Ruff** (lint + format check), **mypy** on `app/`, and **pytest** with coverage. Reproduce locally:
+
+```bash
+make format   # optional: ruff format + apply safe fixes
+make check    # lint + typecheck + full test suite (same spirit as CI)
+```
+
+Optional: validate GitHub Actions YAML if you have [actionlint](https://github.com/rhysd/actionlint) installed:
+
+```bash
+make workflow-check
+```
+
 ## Adding a scorer
 
 1. Add a `ScoreDimension` value (or reuse an existing profile dimension).
@@ -33,14 +48,16 @@ Use Alembic for all production schema changes; avoid `create_all` outside tests.
 
 ## Testing patterns
 
-- **Unit**: pure functions (aggregation, parsers).
-- **Contract**: `/openapi.json` shape.
-- **Integration**: ASGI client + overridden DB session.
-- **E2E**: `respx` mocks for `POST .../chat/completions`.
+- **Unit**: pure functions (aggregation, parsers, prompt builders, `build_job_queue` factory).
+- **Contract**: `/openapi.json` shape and required paths.
+- **Integration**: ASGI client + overridden DB session (SQLite in memory).
+- **E2E**: `respx` mocks for `POST .../chat/completions` — full job lifecycle.
+
+Pytest markers: `@pytest.mark.unit`, `contract`, `integration`, `e2e` (see `pyproject.toml` `[tool.pytest.ini_options]`).
 
 ## Debugging the worker
 
 - Ensure `DATABASE_URL` matches the API.
 - Watch logs for `job_id` and `correlation_id` (`X-Request-ID` on HTTP).
 - For SQLite tests, dequeue uses a simple `SELECT` without `SKIP LOCKED` semantics.
-- **SQS mode** (`JOB_QUEUE_BACKEND=sqs`): API must be able to `SendMessage` and workers must `ReceiveMessage`/`DeleteMessage` on the same queue. After `POST /v1/score-jobs`, the API commits the row then publishes the job id to SQS.
+- **SQS mode** (`JOB_QUEUE_BACKEND=sqs`): API must be able to `SendMessage` and workers must `ReceiveMessage`/`DeleteMessage` on the same queue. After `POST /v1/score-jobs`, the handler **commits** the transaction, then `notify_job_enqueued` sends the `job_id` JSON payload.

@@ -43,35 +43,43 @@ jobs:
           . .venv/bin/activate
           pip install -r requirements.txt
 
-      - name: Configure AWS credentials (optional)
+      # Secrets are not available in `if:`; use a job env from the secret for conditional steps.
+      - name: Expose whether AWS role is configured
+        id: aws
+        run: |
+          if [ -n "${{ secrets.AWS_ROLE_ARN }}" ]; then
+            echo "has_role=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_role=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure AWS credentials
+        if: ${{ steps.aws.outputs.has_role == 'true' }}
         uses: aws-actions/configure-aws-credentials@v4
-        if: env.AWS_ROLE != ''
-        env:
-          AWS_ROLE: ${{ secrets.AWS_ROLE_ARN }}
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
       - name: CDK synth
-        if: github.event.inputs.command == 'synth' || github.event_name != 'workflow_dispatch'
+        if: ${{ github.event.inputs.command == 'synth' }}
         run: |
           . .venv/bin/activate
           cdk synth
 
       - name: CDK diff
-        if: github.event.inputs.command == 'diff'
+        if: ${{ github.event.inputs.command == 'diff' }}
         run: |
           . .venv/bin/activate
           cdk diff --all
 
       - name: CDK deploy (manual only)
-        if: github.event.inputs.command == 'deploy'
+        if: ${{ github.event.inputs.command == 'deploy' }}
         run: |
           . .venv/bin/activate
           cdk deploy --all --require-approval never
 
       - name: CDK destroy (manual only — dangerous)
-        if: github.event.inputs.command == 'destroy'
+        if: ${{ github.event.inputs.command == 'destroy' }}
         run: |
           . .venv/bin/activate
           cdk destroy --all --force
