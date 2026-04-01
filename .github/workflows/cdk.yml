@@ -1,0 +1,77 @@
+# AWS CDK synth (always) and optional deploy — only when explicitly triggered.
+# Requires AWS credentials (OIDC recommended) or long-lived keys for deploy.
+name: CDK
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "cdk command to run (synth, diff, deploy, destroy)"
+        required: true
+        default: "synth"
+        type: choice
+        options:
+          - synth
+          - diff
+          - deploy
+          - destroy
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  cdk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure/cdk
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk@2
+
+      - name: Install Python dependencies
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Configure AWS credentials (optional)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: env.AWS_ROLE != ''
+        env:
+          AWS_ROLE: ${{ secrets.AWS_ROLE_ARN }}
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: CDK synth
+        if: github.event.inputs.command == 'synth' || github.event_name != 'workflow_dispatch'
+        run: |
+          . .venv/bin/activate
+          cdk synth
+
+      - name: CDK diff
+        if: github.event.inputs.command == 'diff'
+        run: |
+          . .venv/bin/activate
+          cdk diff --all
+
+      - name: CDK deploy (manual only)
+        if: github.event.inputs.command == 'deploy'
+        run: |
+          . .venv/bin/activate
+          cdk deploy --all --require-approval never
+
+      - name: CDK destroy (manual only — dangerous)
+        if: github.event.inputs.command == 'destroy'
+        run: |
+          . .venv/bin/activate
+          cdk destroy --all --force

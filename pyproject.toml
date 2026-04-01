@@ -1,0 +1,107 @@
+[project]
+name = "scoring-service"
+version = "0.1.0"
+description = "AI-based document credibility scoring for VerifiedSignal"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "VerifiedSignal", email = "platform@example.com" }]
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    "httpx>=0.28.0",
+    "python-multipart>=0.0.18",
+    "aioboto3>=13.0.0",
+    "orjson>=3.10.0",
+    "greenlet>=3.1.0",
+]
+
+[project.scripts]
+scoring-api = "app.main:run"
+scoring-worker = "app.workers.scoring_worker:main"
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "ipython>=8.30.0",
+    "watchfiles>=1.0.0",
+]
+test = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
+    "respx>=0.22.0",
+    "factory-boy>=3.3.0",
+    "faker>=33.0.0",
+    "httpx>=0.28.0",
+    "aiosqlite>=0.20.0",
+]
+lint = [
+    "ruff>=0.8.0",
+    "mypy>=1.14.0",
+    "types-aioboto3>=13.0.0",
+]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["app", "tests", "infrastructure/cdk"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "S", "SIM"]
+ignore = ["S101"]  # allow assert in tests via per-file-override
+
+[tool.ruff.lint.per-file-ignores]
+"app/api/**/*.py" = ["B008"]
+"app/core/security.py" = ["B008"]
+"app/core/config.py" = ["S104"]
+"tests/**/*.py" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
+exclude = ["venv", ".venv", "build", "infrastructure/cdk/.venv"]
+
+[[tool.mypy.overrides]]
+module = ["aioboto3.*", "botocore.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+addopts = "-q --strict-markers"
+markers = [
+    "unit: fast unit tests",
+    "contract: schema and OpenAPI contract tests",
+    "integration: API + database tests",
+    "e2e: full lifecycle with mocks",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:"]
