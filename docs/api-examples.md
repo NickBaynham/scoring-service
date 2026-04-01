@@ -55,3 +55,4 @@ curl -s "http://localhost:8000/v1/documents/<DOCUMENT_ID>/scores?tenant_id=tenan
 - Swagger UI: `/` (redirect) or `/docs`
 - Raw schema: `/openapi.json`
 - ReDoc: `/redoc`
+- **Static copy** in the repo: [`swagger.html`](swagger.html) + [`openapi.json`](openapi.json). Regenerate the JSON with `make openapi-export`, then serve the `docs/` directory over HTTP (see the main README) so the browser can load the spec.

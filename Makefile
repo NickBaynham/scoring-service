@@ -1,5 +1,5 @@
 .PHONY: help install sync format lint typecheck check test test-unit test-contract test-integration test-e2e \
-	run worker dev docker-build docker-up docker-down migrate revision seed clean workflow-check
+	run worker dev docker-build docker-up docker-down migrate revision seed clean workflow-check openapi-export
 
 PYTHON ?= python3
 PDM ?= pdm
@@ -13,6 +13,7 @@ help:
 	@echo "  make lint             Ruff check"
 	@echo "  make typecheck        mypy on app/"
 	@echo "  make check            lint + typecheck + test (CI parity)"
+	@echo "  make openapi-export   Regenerate docs/openapi.json + view docs/swagger.html in a browser"
 	@echo "  make workflow-check   actionlint on .github/workflows (optional)"
 	@echo "  make test             All pytest suites"
 	@echo "  make test-unit        Unit tests only"
@@ -37,11 +38,11 @@ sync:
 	$(PDM) sync -G dev -G test -G lint
 
 format:
-	$(PDM) run ruff format app tests
-	$(PDM) run ruff check --fix app tests
+	$(PDM) run ruff format app tests scripts
+	$(PDM) run ruff check --fix app tests scripts
 
 lint:
-	$(PDM) run ruff check app tests
+	$(PDM) run ruff check app tests scripts
 
 typecheck:
 	$(PDM) run mypy app
@@ -52,6 +53,9 @@ check: lint typecheck test
 workflow-check:
 	@command -v actionlint >/dev/null 2>&1 && actionlint .github/workflows/*.yml || \
 		(echo "Install actionlint: https://github.com/rhysd/actionlint#installation" && exit 1)
+
+openapi-export:
+	$(PDM) run python scripts/export_openapi.py
 
 test:
 	$(PDM) run pytest tests/ -v --cov=app --cov-report=term-missing

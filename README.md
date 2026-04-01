@@ -24,7 +24,7 @@ See [docs/architecture.md](docs/architecture.md) for diagrams and data flow.
 | `tests/` | unit, contract, integration, e2e |
 | `docker/` | `api.Dockerfile`, `worker.Dockerfile` |
 | `infrastructure/cdk/` | AWS CDK Python stacks |
-| `docs/` | End-user, developer, architecture, scoring model, API examples, CDK database notes |
+| `docs/` | Guides, plus **static** [`swagger.html`](docs/swagger.html) + [`openapi.json`](docs/openapi.json) (regenerate with `make openapi-export`) |
 | `scripts/` | Bootstrap, wait-for-Postgres, seed data |
 | `.github/workflows/` | CI, Docker image build, CDK (manual) |
 
@@ -138,6 +138,14 @@ Tests use **pytest-asyncio** and **httpx** `ASGITransport` against the FastAPI a
 
 **OpenAPI**: `/` redirects to **Swagger UI** (`/docs`); machine-readable spec at `/openapi.json` and **ReDoc** at `/redoc`. Example curls: [docs/api-examples.md](docs/api-examples.md).
 
+**Static Swagger (offline):** open [`docs/swagger.html`](docs/swagger.html) after serving the `docs/` folder over HTTP (browsers block loading `openapi.json` from `file://` in many cases). From the repo root:
+
+```bash
+make openapi-export   # refresh docs/openapi.json from the FastAPI app
+python3 -m http.server 8765 --directory docs
+# visit http://localhost:8765/swagger.html
+```
+
 ## Scoring model
 
 Dimensions and aggregation formula: [docs/scoring-model.md](docs/scoring-model.md).
@@ -158,8 +166,8 @@ Images: `docker/api.Dockerfile`, `docker/worker.Dockerfile`.
 | Workflow | When | What |
 |----------|------|------|
 | **`ci.yml`** | Push/PR to `main` | PDM install, ruff check + format check, mypy, pytest + coverage artifact |
-| **`docker.yml`** | Manual `workflow_dispatch` (optional push) or tags `v*` | Build/push **two** images (`*-api`, `*-worker`) to registry. Configure repository **variables** `CONTAINER_REGISTRY`, `IMAGE_NAME` and secrets `REGISTRY_USERNAME`, `REGISTRY_PASSWORD` (or `GITHUB_TOKEN` for GHCR) |
-| **`cdk.yml`** | Manual only | `synth`, `diff`, `deploy`, `destroy`. Set `AWS_ROLE_ARN` secret for OIDC/role assumption when needed |
+| **`docker.yml`** | Manual `workflow_dispatch` (optional push) or tags `v*` | Build/push **two** images to **GHCR**: `ghcr.io/<owner>/<repo>-api` and `-worker`, using **`GITHUB_TOKEN`** (`packages: write`). Customize by editing the workflow env or forking |
+| **`cdk.yml`** | Manual only | `synth`, `diff`, `deploy`, `destroy`. Set **workflow inputs** `role_arn` (OIDC IAM role) and `aws_region` when assuming a role; leave `role_arn` empty to skip `configure-aws-credentials` (e.g. local-style `cdk synth`) |
 
 ## AWS CDK
 

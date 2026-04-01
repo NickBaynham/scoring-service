@@ -1,5 +1,9 @@
 # Developer guide
 
+## Static Swagger UI
+
+Run `make openapi-export` to write `docs/openapi.json` from the FastAPI app. Open `docs/swagger.html` in a browser by serving the `docs/` folder (for example `python3 -m http.server 8765 --directory docs` and visit `http://localhost:8765/swagger.html`). Regenerate the JSON after API changes.
+
 ## Local workflow
 
 1. `make install` — install PDM groups.

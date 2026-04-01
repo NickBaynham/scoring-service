@@ -1,0 +1,805 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "VerifiedSignal Scoring Service",
+    "description": "## Overview\n\nAI-based document credibility scoring: queue jobs, run multi-dimension LLM scorers, and retrieve structured credibility profiles.\n\n## Using this API\n\nVisit the **service root** (`/`) in a browser to open this **Swagger UI** (the root URL redirects here). Use **Try it out** on each operation to call the API.\n\n- **OpenAPI document (JSON)**: [`/openapi.json`](/openapi.json)\n- **ReDoc**: [`/redoc`](/redoc)\n- **Optional headers**: `X-API-Key` when the server sets `API_KEY`; `X-Request-ID` for request correlation (echoed on responses).\n",
+    "contact": {
+      "name": "VerifiedSignal Platform",
+      "url": "https://example.com/support",
+      "email": "platform@example.com"
+    },
+    "license": {
+      "name": "Proprietary",
+      "url": "https://example.com/license"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Liveness and basic dependency readiness",
+        "description": "Return service health and basic dependency readiness.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Critical dependency unavailable"
+          }
+        }
+      }
+    },
+    "/v1/score-jobs": {
+      "post": {
+        "tags": [
+          "Scoring jobs"
+        ],
+        "summary": "Submit a scoring job",
+        "description": "Queues an asynchronous scoring run for the given document. Provide inline `text` or `text_uri`, or ensure the document already has text.",
+        "operationId": "create_job_v1_score_jobs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoreJobCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Job accepted and queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScoreJobCreateResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/v1/score-jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "Scoring jobs"
+        ],
+        "summary": "Get scoring job status",
+        "operationId": "get_job_v1_score_jobs__job_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Tenant scope",
+              "examples": [
+                "tenant_1"
+              ],
+              "title": "Tenant Id"
+            },
+            "description": "Tenant scope"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScoreJobStatusResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown job id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/documents": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Register a document",
+        "operationId": "create_document_v1_documents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Document created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid body"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/v1/documents/{document_id}/scores": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Get latest credibility scores for a document",
+        "operationId": "get_scores_v1_documents__document_id__scores_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "tenant_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "tenant_1"
+              ],
+              "title": "Tenant Id"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "credibility_v1"
+              ],
+              "default": "credibility_v1",
+              "title": "Profile"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Scores found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentScoresResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Document or scores missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DocumentCreateRequest": {
+        "properties": {
+          "tenant_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Tenant Id",
+            "examples": [
+              "tenant_1"
+            ]
+          },
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "paste",
+              "upload",
+              "s3_ref",
+              "unknown"
+            ],
+            "title": "Source Type",
+            "default": "paste"
+          },
+          "text_uri": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2048
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Uri",
+            "examples": [
+              "s3://bucket/key.txt"
+            ]
+          },
+          "raw_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Text",
+            "examples": [
+              "Optional inline text."
+            ]
+          },
+          "profile": {
+            "type": "string",
+            "title": "Profile",
+            "default": "credibility_v1",
+            "examples": [
+              "credibility_v1"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id"
+        ],
+        "title": "DocumentCreateRequest",
+        "description": "Register a document before scoring."
+      },
+      "DocumentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "text_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Uri"
+          },
+          "profile": {
+            "type": "string",
+            "title": "Profile"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "source_type",
+          "text_uri",
+          "profile",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "DocumentResponse",
+        "description": "Created or retrieved document."
+      },
+      "DocumentScoresResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "profile": {
+            "type": "string",
+            "title": "Profile"
+          },
+          "overall_score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Overall Score"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          },
+          "scores": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Scores"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/ScoreIssue"
+            },
+            "type": "array",
+            "title": "Issues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "profile",
+          "overall_score",
+          "confidence",
+          "scores",
+          "issues"
+        ],
+        "title": "DocumentScoresResponse",
+        "description": "Latest credibility profile for a document."
+      },
+      "DocumentStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "ready",
+          "scored",
+          "error"
+        ],
+        "title": "DocumentStatus",
+        "description": "Lifecycle state of a document record."
+      },
+      "ErrorDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Stable error code",
+            "examples": [
+              "validation_error"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Human-readable message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorDetail",
+        "description": "Machine-readable error payload."
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "description": "Standard error envelope."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "JobStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "completed",
+          "failed"
+        ],
+        "title": "JobStatus",
+        "description": "Scoring job state."
+      },
+      "ScoreIssue": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "examples": [
+              "unsupported_claim"
+            ]
+          },
+          "severity": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Severity"
+          },
+          "quoted_span": {
+            "type": "string",
+            "title": "Quoted Span",
+            "default": "",
+            "examples": [
+              "The platform is used by 80% of firms."
+            ]
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation",
+            "default": "",
+            "examples": [
+              "Specific quantitative claim lacks supporting evidence."
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "severity"
+        ],
+        "title": "ScoreIssue",
+        "description": "A concrete issue surfaced by a scorer."
+      },
+      "ScoreJobCreateRequest": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id",
+            "examples": [
+              "doc_123"
+            ]
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id",
+            "examples": [
+              "tenant_1"
+            ]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text",
+            "description": "Optional raw text; used if document has no text yet.",
+            "examples": [
+              "The company grew 50% year over year."
+            ]
+          },
+          "text_uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Uri",
+            "description": "Optional S3 URI for normalized text blob.",
+            "examples": [
+              "s3://my-bucket/docs/a.txt"
+            ]
+          },
+          "profile": {
+            "type": "string",
+            "title": "Profile",
+            "default": "credibility_v1",
+            "examples": [
+              "credibility_v1"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "tenant_id"
+        ],
+        "title": "ScoreJobCreateRequest",
+        "description": "Submit a scoring job."
+      },
+      "ScoreJobCreateResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id",
+            "examples": [
+              "job_456"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "const": "queued",
+            "title": "Status",
+            "default": "queued"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "title": "ScoreJobCreateResponse",
+        "description": "Queued job acknowledgement."
+      },
+      "ScoreJobStatusResponse": {
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "title": "Tenant Id"
+          },
+          "profile_name": {
+            "type": "string",
+            "title": "Profile Name"
+          },
+          "profile_version": {
+            "type": "string",
+            "title": "Profile Version"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "document_id",
+          "tenant_id",
+          "profile_name",
+          "profile_version",
+          "status",
+          "created_at"
+        ],
+        "title": "ScoreJobStatusResponse",
+        "description": "Job metadata and lifecycle state."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Health",
+      "description": "Liveness and readiness probes."
+    },
+    {
+      "name": "Scoring jobs",
+      "description": "Submit asynchronous credibility scoring jobs and poll status."
+    },
+    {
+      "name": "Documents",
+      "description": "Register documents and retrieve aggregated scores."
+    }
+  ]
+}

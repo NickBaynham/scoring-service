@@ -1,5 +1,5 @@
 # AWS CDK synth (always) and optional deploy — only when explicitly triggered.
-# Requires AWS credentials (OIDC recommended) or long-lived keys for deploy.
+# For deploy/diff against AWS, provide the OIDC IAM role ARN when running the workflow.
 name: CDK
 
 on:
@@ -15,6 +15,16 @@ on:
           - diff
           - deploy
           - destroy
+      aws_region:
+        description: "AWS region for CDK and configure-aws-credentials"
+        required: false
+        default: "us-east-1"
+        type: string
+      role_arn:
+        description: "IAM role ARN for OIDC (GitHub→AWS). Leave empty to skip AWS login (e.g. synth without credentials)."
+        required: false
+        default: ""
+        type: string
 
 permissions:
   id-token: write
@@ -43,11 +53,11 @@ jobs:
           . .venv/bin/activate
           pip install -r requirements.txt
 
-      # Secrets are not available in `if:`; use a job env from the secret for conditional steps.
+      # Secrets cannot be used in `if:`; probe role input in shell (empty skips AWS login).
       - name: Expose whether AWS role is configured
         id: aws
         run: |
-          if [ -n "${{ secrets.AWS_ROLE_ARN }}" ]; then
+          if [ -n "${{ github.event.inputs.role_arn }}" ]; then
             echo "has_role=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_role=false" >> "$GITHUB_OUTPUT"
@@ -57,8 +67,8 @@ jobs:
         if: ${{ steps.aws.outputs.has_role == 'true' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          role-to-assume: ${{ github.event.inputs.role_arn }}
+          aws-region: ${{ github.event.inputs.aws_region != '' && github.event.inputs.aws_region || 'us-east-1' }}
 
       - name: CDK synth
         if: ${{ github.event.inputs.command == 'synth' }}

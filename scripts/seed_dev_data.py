@@ -4,9 +4,8 @@ import asyncio
 import os
 import uuid
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
 from app.db.models import Document, DocumentStatus, SourceType
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 
 async def main() -> None:

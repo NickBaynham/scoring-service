@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VerifiedSignal Scoring Service — API (static)</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css"
+      crossorigin="anonymous"
+    />
+    <style>
+      html {
+        box-sizing: border-box;
+      }
+      *,
+      *::before,
+      *::after {
+        box-sizing: inherit;
+      }
+      body {
+        margin: 0;
+      }
+      #swagger-ui {
+        max-width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script
+      src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"
+      crossorigin="anonymous"
+    ></script>
+    <script>
+      window.onload = function () {
+        const specUrl = new URL("openapi.json", window.location.href).href;
+        window.ui = SwaggerUIBundle({
+          url: specUrl,
+          dom_id: "#swagger-ui",
+          deepLinking: true,
+          tryItOutEnabled: true,
+        });
+      };
+    </script>
+  </body>
+</html>
