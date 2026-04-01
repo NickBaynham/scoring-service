@@ -48,7 +48,7 @@ make dev
 make worker
 ```
 
-Open **Swagger UI**: http://localhost:8000/docs
+Open **Swagger UI** at the service root (redirects to `/docs`): http://localhost:8000/
 
 ## Static checks and tests (local)
 
@@ -136,7 +136,7 @@ Tests use **pytest-asyncio** and **httpx** `ASGITransport` against the FastAPI a
 - `GET /v1/score-jobs/{job_id}?tenant_id=...` — job status.
 - `GET /v1/documents/{document_id}/scores?tenant_id=...&profile=credibility_v1` — latest scores.
 
-**OpenAPI**: `/docs` and `/openapi.json`. Example curls: [docs/api-examples.md](docs/api-examples.md).
+**OpenAPI**: `/` redirects to **Swagger UI** (`/docs`); machine-readable spec at `/openapi.json` and **ReDoc** at `/redoc`. Example curls: [docs/api-examples.md](docs/api-examples.md).
 
 ## Scoring model
 

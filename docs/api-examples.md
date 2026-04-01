@@ -1,6 +1,8 @@
 # API examples
 
-Base URL examples use `http://localhost:8000`. Add `-H "X-API-Key: ..."` if `API_KEY` is configured.
+Base URL examples use `http://localhost:8000`. **GET /** redirects to **Swagger UI** (`/docs`) so you can explore and try requests interactively; the same contract is available as JSON at `/openapi.json`.
+
+Add `-H "X-API-Key: ..."` if `API_KEY` is configured.
 
 Optional tracing: send `X-Request-ID: <uuid>` on requests; the API echoes it on responses.
 
@@ -50,5 +52,6 @@ curl -s "http://localhost:8000/v1/documents/<DOCUMENT_ID>/scores?tenant_id=tenan
 
 ## OpenAPI
 
-- Swagger UI: `/docs`
+- Swagger UI: `/` (redirect) or `/docs`
 - Raw schema: `/openapi.json`
+- ReDoc: `/redoc`

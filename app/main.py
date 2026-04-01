@@ -11,7 +11,7 @@ import uvicorn
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 
 from app.api.router import api_router
 from app.api.routes.openapi import CONTACT, OPENAPI_TAGS_METADATA
@@ -47,8 +47,16 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="VerifiedSignal Scoring Service",
         description=(
+            "## Overview\n\n"
             "AI-based document credibility scoring: queue jobs, run multi-dimension LLM scorers, "
-            "and retrieve structured credibility profiles."
+            "and retrieve structured credibility profiles.\n\n"
+            "## Using this API\n\n"
+            "Visit the **service root** (`/`) in a browser to open this **Swagger UI** (the root URL "
+            "redirects here). Use **Try it out** on each operation to call the API.\n\n"
+            "- **OpenAPI document (JSON)**: [`/openapi.json`](/openapi.json)\n"
+            "- **ReDoc**: [`/redoc`](/redoc)\n"
+            "- **Optional headers**: `X-API-Key` when the server sets `API_KEY`; `X-Request-ID` for "
+            "request correlation (echoed on responses).\n"
         ),
         version="0.1.0",
         openapi_tags=OPENAPI_TAGS_METADATA,
@@ -56,6 +64,11 @@ def create_app() -> FastAPI:
         license_info={"name": "Proprietary", "url": "https://example.com/license"},
         lifespan=lifespan,
     )
+
+    @app.get("/", include_in_schema=False)
+    async def root() -> RedirectResponse:
+        """Send browsers to interactive Swagger UI; same spec as `/openapi.json`."""
+        return RedirectResponse(url="/docs")
 
     app.add_middleware(
         CORSMiddleware,
